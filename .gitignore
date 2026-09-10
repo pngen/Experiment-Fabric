@@ -1,0 +1,51 @@
+# Build outputs
+build/
+build-*/
+out/
+install/
+*.o
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.dll
+*.lib
+*.exp
+*.a
+*.so
+*.dylib
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+*_build/
+compile_commands.json
+
+# Visual Studio / editors
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.sln
+*.vcxproj*
+*.aps
+*.ncb
+*.opendb
+
+# Runtime artifacts
+*.efstate
+*.efs
+*.log
+*.tmp
+ef_store/
+temp_store/
+sanitizer*/
+asan*/
+
+# CUDA
+*.cubin
+*.ptx
