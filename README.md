@@ -88,7 +88,7 @@ Those remain adjacent concerns.
 
 ## Architecture
 
-`@@`@@`@
+```
 apps/ef_coordinator      coordinator process: durable state, authority, framed TCP control plane
 apps/ef_worker           worker process: claims, executes, publishes, commits; owns no authority
 apps/ef_ctl              inspection and control client (deterministic text output)
@@ -114,7 +114,7 @@ tests/                   the proof obligations, including the multi-process proo
 benchmarks/              measurements of completed operations
 cuda/                    a real accelerator-backed reference trial
 consumer/                an independent downstream find_package consumer
-`@@`@@`@
+```
 
 The coordinator owns one coherent durable state and one live process authority. A single state lock
 guards durable state and worker liveness together, so an authority decision is always made against
@@ -308,10 +308,10 @@ Windows x64 with MSVC is the validated platform.
 
 ## Build
 
-`@@`@@`@
+```
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-`@@`@@`@
+```
 
 Options: `EXPERIMENT_FABRIC_BUILD_TOOLS`, `EXPERIMENT_FABRIC_BUILD_EXAMPLES`,
 `EXPERIMENT_FABRIC_BUILD_TESTS`, `EXPERIMENT_FABRIC_BUILD_BENCHMARKS`,
@@ -322,10 +322,10 @@ Release and Debug both build with `/W4 /WX` on MSVC and zero first-party warning
 
 ## Test
 
-`@@`@@`@
+```
 build/tests/ef_tests
 build/tests/ef_tests --filter=multiprocess
-`@@`@@`@
+```
 
 Tests run plainly: no timeout control of any kind is applied, because a hanging test is a defect to
 diagnose rather than something to abandon. The suite covers unit, state-machine, integration,
@@ -337,7 +337,7 @@ process termination, and replay the framed traffic those processes actually sent
 
 ## Examples
 
-`@@`@@`@
+```
 build/examples/example_latency_comparison
 build/examples/example_throughput_memory_tradeoff
 build/examples/example_branch_fork
@@ -350,7 +350,7 @@ build/examples/example_insufficient_evidence
 build/examples/example_reproducibility
 build/examples/example_lineage
 build/cuda/ef_cuda_trial
-`@@`@@`@
+```
 
 Each example exercises the systems boundary rather than displaying API syntax.
 `example_insufficient_evidence` shows a numerically favorable candidate that is still not
@@ -359,11 +359,11 @@ late result that can never become authoritative.
 
 ## Tools
 
-`@@`@@`@
+```
 build/ef_coordinator --state <path> --port 0 --port-file <path> --scenario <name>
 build/ef_worker --host 127.0.0.1 --port <n> --worker 1 --workload parameter --cycles 8
 build/ef_ctl --host 127.0.0.1 --port <n> <command>
-`@@`@@`@
+```
 
 `ef_ctl` supports `status`, `list`, `workers`, `validate`, `snapshot`,
 `hypothesis`, `branches`, `lineage`, `trials`, `observations`,
@@ -373,14 +373,14 @@ build/ef_ctl --host 127.0.0.1 --port <n> <command>
 
 ## Benchmark
 
-`@@`@@`@
+```
 build/ef_bench --scale=2000
-`@@`@@`@
+```
 
 Every measurement covers a completed operation. Representative Release figures on the validated
 platform (Windows x64, MSVC 19.44, 16 logical cores), scale 2000:
 
-`@@`@@`@
+```
 experiment creation            3.4 us/op    (validated definition, identities allocated, state advanced)
 trial admission               35.5 us/op
 full trial lifecycle          44.9 us/op    (claim, observation publication, authoritative completion)
@@ -390,15 +390,15 @@ snapshot read                 12.8 us/op
 concurrent read path           2.3 us/op
 durable commit                 1.2 ms/op    (serialise, flush, atomic replace)
 state load                   302.5 us/op    (bounded decode, per-record checksums, whole-image digest)
-`@@`@@`@
+```
 
 ## Install and consume
 
-`@@`@@`@
+```
 cmake --install build --prefix <prefix>
 cmake -S consumer -B <outside-tree-build> -DCMAKE_PREFIX_PATH=<prefix>
 cmake --build <outside-tree-build>
-`@@`@@`@
+```
 
 `consumer/` is an independent downstream project that consumes only the installed package
 through `find_package(ExperimentFabric 1.0 REQUIRED)` and the exported
