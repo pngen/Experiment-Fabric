@@ -124,7 +124,7 @@ Result<ReproducibilityRecord> Coordinator::reproducibility(ExperimentId experime
                                  " worker:" + attempt_iterator->second.worker.to_string() +
                                  " boot:" + attempt_iterator->second.boot.to_string();
     }
-    if (!trial.seed.has_value() && result.seed.has_value()) {
+    if (trial.seed.has_value() && !result.seed.has_value()) {
       result.seed = trial.seed;
     }
   }

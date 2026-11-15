@@ -214,6 +214,39 @@ EF_TEST(authority, exactly_one_logical_completion_per_trial_is_enforced) {
   EF_CHECK_EQ(snapshot.value().decisions.size(), std::size_t{0});
 }
 
+EF_TEST(authority, a_conflicting_commit_redelivery_is_refused) {
+  auto fixture = ef_fixture::make_fixture(nullptr, two_branches(), 1, false, 3);
+  EF_REQUIRE(fixture.ok());
+  ef::Coordinator& coordinator = *fixture.value().coordinator;
+  EF_REQUIRE(coordinator.create_trial(fixture.value().experiment, fixture.value().baseline, "p").ok());
+  auto assignment = ef_fixture::claim_one(coordinator, fixture.value().worker);
+  EF_REQUIRE(assignment.ok());
+  EF_REQUIRE(!assignment.value().artifact_ids.empty());
+  EF_REQUIRE(ef_fixture::publish_value(coordinator, fixture.value().worker, assignment.value(), "latency_ms", 120.0).ok());
+  EF_REQUIRE(ef_fixture::commit(coordinator, fixture.value().worker, assignment.value()).ok());
+  // A re-delivery that carries an artifact the completion never recorded is
+  // not a duplicate of that completion: it is refused and records nothing.
+  ef::CommitTrialRequest conflicting;
+  conflicting.epoch = fixture.value().worker.epoch;
+  conflicting.worker = fixture.value().worker.worker;
+  conflicting.boot = fixture.value().worker.boot;
+  conflicting.envelope = assignment.value().envelope;
+  conflicting.result_payload = "fixture";
+  ef::ArtifactRecord late;
+  late.id = assignment.value().artifact_ids.front();
+  late.category = "trace";
+  late.locator = "synthetic://late";
+  late.provenance = "SYNTHETIC";
+  conflicting.artifacts.push_back(late);
+  const ef::Status status = coordinator.commit_trial(conflicting);
+  EF_CHECK(!status.ok());
+  EF_CHECK_EQ(status.code(), ef::ErrorCode::STALE_ATTEMPT);
+  const auto snapshot = coordinator.snapshot(fixture.value().experiment);
+  EF_REQUIRE(snapshot.ok());
+  EF_CHECK(snapshot.value().artifacts.empty());
+  EF_CHECK_EQ(snapshot.value().trials[0].trial.committed_attempts, 1u);
+}
+
 EF_TEST(authority, publication_after_branch_retirement_is_refused) {
   auto fixture = ef_fixture::make_fixture();
   EF_REQUIRE(fixture.ok());

@@ -81,20 +81,25 @@ void check_equal(const T& lhs, const T& rhs, const char* lhs_text, const char* r
 
 #define EF_CHECK_EQ(lhs, rhs) ::ef_test::check_equal((lhs), (rhs), #lhs, #rhs, __FILE__, __LINE__)
 
-#define EF_REQUIRE(condition)                                     \
-  do {                                                            \
-    ::ef_test::check((condition), __FILE__, __LINE__, #condition); \
-    if (!(condition)) {                                           \
-      return;                                                     \
-    }                                                             \
+// The condition is evaluated exactly once: a requirement such as
+// EF_REQUIRE(process.spawn(...)) or EF_REQUIRE(publish(...)) must not perform
+// its action twice, and a second evaluation must never end a test silently.
+#define EF_REQUIRE(condition)                                             \
+  do {                                                                    \
+    const bool ef_requirement_holds = static_cast<bool>(condition);       \
+    ::ef_test::check(ef_requirement_holds, __FILE__, __LINE__, #condition); \
+    if (!ef_requirement_holds) {                                          \
+      return;                                                             \
+    }                                                                     \
   } while (false)
 
-#define EF_REQUIRE_MESSAGE(condition, message)                                        \
-  do {                                                                                \
-    ::ef_test::check((condition), __FILE__, __LINE__, std::string(message));           \
-    if (!(condition)) {                                                               \
-      return;                                                                         \
-    }                                                                                 \
+#define EF_REQUIRE_MESSAGE(condition, message)                                      \
+  do {                                                                              \
+    const bool ef_requirement_holds = static_cast<bool>(condition);                 \
+    ::ef_test::check(ef_requirement_holds, __FILE__, __LINE__, std::string(message)); \
+    if (!ef_requirement_holds) {                                                    \
+      return;                                                                       \
+    }                                                                               \
   } while (false)
 
 #endif  // EXPERIMENT_FABRIC_TESTS_TEST_SUPPORT_HPP

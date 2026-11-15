@@ -21,6 +21,7 @@ class ReentrantObserver : public ef::CoordinatorObserver {
  public:
   explicit ReentrantObserver(ef::Coordinator* coordinator) : coordinator_(coordinator) {}
 
+  void set_coordinator(ef::Coordinator* coordinator) { coordinator_ = coordinator; }
   void set_experiment(ef::ExperimentId experiment) { experiment_ = experiment; }
   void set_branch(ef::BranchId branch) { branch_ = branch; }
 
@@ -67,9 +68,12 @@ EF_TEST(concurrency, observer_callbacks_run_without_holding_coordinator_locks) {
       BranchFixture{"candidate", ef::BranchRole::CANDIDATE, 95.0, 1, false}};
   auto fixture = ef_fixture::make_fixture(&observer, branches, 1, false, 3);
   EF_REQUIRE(fixture.ok());
+  ef::Coordinator& coordinator = *fixture.value().coordinator;
+  // The observer is built before the coordinator exists: bind it now so that
+  // every later callback re-enters the coordinator.
+  observer.set_coordinator(&coordinator);
   observer.set_experiment(fixture.value().experiment);
   observer.set_branch(fixture.value().candidate);
-  ef::Coordinator& coordinator = *fixture.value().coordinator;
   EF_REQUIRE(ef_fixture::run_planned_trials(coordinator, fixture.value().experiment, fixture.value().worker, branches)
                  .ok());
   EF_REQUIRE(coordinator.finalize_experiment(fixture.value().experiment, fixture.value().candidate, "reentrant").ok());

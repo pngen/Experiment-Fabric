@@ -696,6 +696,18 @@ Result<HypothesisRevision> Coordinator::revise_hypothesis(ExperimentId experimen
     record->definition.generation = ExperimentGeneration::from_value(record->definition.generation.value() + 1);
     record->revision_sequence = sequence;
     impl.abandon_stale_live_work(*record, record->definition.generation, sequence);
+    // Completed trials of the earlier revision keep their history and receive
+    // the SUPERSEDED audit marker: they are no longer current evidence.
+    for (auto& trial_entry : record->trials) {
+      TrialRecord& trial = trial_entry.second;
+      if (trial.state != TrialState::COMPLETED) {
+        continue;
+      }
+      trial.state = TrialState::SUPERSEDED;
+      trial.failure_kind = FailureKind::EXPERIMENT_INVALIDATION;
+      trial.failure_detail = "superseded by hypothesis revision " + record->hypothesis.revision.to_string();
+      trial.updated_sequence = sequence;
+    }
     impl.log(*record, "hypothesis-revised revision=" + record->hypothesis.revision.to_string() +
                           " generation=" + record->definition.generation.to_string());
     revision = record->hypothesis.revision;
@@ -1074,7 +1086,11 @@ std::vector<BranchEvidence> Coordinator::Impl::compute_evidence(const Experiment
         aggregate.missing_count += observation.missing;
         aggregate.unsupported_count += observation.unsupported;
         if (observation.valid == nullptr) {
-          ++aggregate.missing_count;
+          // A trial without a valid value counts once as missing; an explicit
+          // MISSING observation has already been counted above.
+          if (observation.missing == 0) {
+            ++aggregate.missing_count;
+          }
           continue;
         }
         ++aggregate.valid_count;

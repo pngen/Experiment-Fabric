@@ -44,6 +44,10 @@ EF_TEST(rollback, rollback_restores_authority_and_requires_fresh_execution) {
   const ef::ExperimentGeneration accepted_generation = decision.value().generation;
   EF_CHECK_EQ(accepted_generation.value(), 1ull);
 
+  // A finalized experiment refuses further mutation: rolling back to the
+  // accepted generation re-opens it for a later revision.
+  EF_REQUIRE(coordinator.rollback(fixture.value().experiment, accepted_generation, "re-open for a revision").ok());
+
   // A hypothesis revision advances the generation and fences the evidence.
   ef::HypothesisRevisionSpec revision;
   revision.statement = "A later revision that changes the experiment semantics.";
@@ -63,11 +67,12 @@ EF_TEST(rollback, rollback_restores_authority_and_requires_fresh_execution) {
   EF_REQUIRE(restored.ok());
   EF_CHECK_EQ(restored.value().definition.generation.value(), accepted_generation.value());
   EF_CHECK(restored.value().state == ef::ExperimentState::OPEN);
-  // History survives: the superseded trials, the accepted decision, and both
-  // rollback points are still present.
+  // History survives: the superseded trials, the accepted decision, and every
+  // rollback point (the decision's, the re-opening's and this restore's) are
+  // still present.
   EF_CHECK_EQ(restored.value().decisions.size(), std::size_t{1});
   EF_CHECK(restored.value().trials.size() >= 2);
-  EF_CHECK_EQ(restored.value().rollback_points.size(), std::size_t{2});
+  EF_CHECK_EQ(restored.value().rollback_points.size(), std::size_t{3});
   EF_CHECK(restored.value().rollback_points.back().restored_from.valid());
   EF_CHECK_EQ(restored.value().rollback_points.back().restored_from.value(), 2ull);
   for (const auto& trial : restored.value().trials) {
@@ -86,17 +91,21 @@ EF_TEST(rollback, rollback_restores_authority_and_requires_fresh_execution) {
 }
 
 EF_TEST(rollback, rollback_fences_live_attempts_derived_from_superseded_state) {
-  auto fixture = ef_fixture::make_fixture(nullptr, two_branches(), 1, false, 3);
+  // The candidate plans one trial more than the run completes: that trial is
+  // still in flight when the decision is recorded, so its live attempt derives
+  // from the authority state that the rollback supersedes.
+  auto fixture = ef_fixture::make_fixture(nullptr,
+                                          {BranchFixture{"baseline", ef::BranchRole::BASELINE, 120.0, 1, false},
+                                           BranchFixture{"candidate", ef::BranchRole::CANDIDATE, 95.0, 2, false}},
+                                          1, false, 3);
   EF_REQUIRE(fixture.ok());
   ef::Coordinator& coordinator = *fixture.value().coordinator;
   EF_REQUIRE(ef_fixture::run_planned_trials(coordinator, fixture.value().experiment, fixture.value().worker,
                                             two_branches())
                  .ok());
-  EF_REQUIRE(coordinator.finalize_experiment(fixture.value().experiment, fixture.value().candidate, "accepted").ok());
-
-  EF_REQUIRE(coordinator.create_trial(fixture.value().experiment, fixture.value().baseline, "open").ok());
   auto open_assignment = ef_fixture::claim_one(coordinator, fixture.value().worker);
   EF_REQUIRE(open_assignment.ok());
+  EF_REQUIRE(coordinator.finalize_experiment(fixture.value().experiment, fixture.value().candidate, "accepted").ok());
 
   EF_REQUIRE(coordinator
                  .rollback(fixture.value().experiment, ef::ExperimentGeneration::from_value(1), "fence the live work")
@@ -129,6 +138,11 @@ EF_TEST(rollback, a_branch_created_after_the_target_is_retired_by_the_rollback) 
                                             two_branches())
                  .ok());
   EF_REQUIRE(coordinator.finalize_experiment(fixture.value().experiment, fixture.value().candidate, "accepted").ok());
+  // A finalized experiment refuses further mutation: re-open it at the
+  // accepted generation first.
+  EF_REQUIRE(coordinator
+                 .rollback(fixture.value().experiment, ef::ExperimentGeneration::from_value(1), "re-open for a fork")
+                 .ok());
 
   ef::BranchSpec fork;
   fork.name = "later-branch";
@@ -136,6 +150,10 @@ EF_TEST(rollback, a_branch_created_after_the_target_is_retired_by_the_rollback) 
   fork.planned_trials = 1;
   const auto forked = coordinator.fork_branch(fixture.value().experiment, fixture.value().baseline, fork);
   EF_REQUIRE(forked.ok());
+  // A later revision moves the experiment past the rollback target.
+  ef::HypothesisRevisionSpec revision;
+  revision.statement = "A later revision after the fork.";
+  EF_REQUIRE(coordinator.revise_hypothesis(fixture.value().experiment, revision).ok());
 
   EF_REQUIRE(coordinator
                  .rollback(fixture.value().experiment, ef::ExperimentGeneration::from_value(1), "drop the later branch")

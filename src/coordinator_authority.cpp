@@ -198,6 +198,15 @@ EnvelopeCheck Coordinator::Impl::check_envelope(const AuthorityEnvelope& envelop
     return check;
   }
   if (is_terminal(trial->state)) {
+    if (trial->state == TrialState::COMPLETED && trial->authoritative_attempt == envelope.attempt) {
+      const auto committed = record->attempts.find(envelope.attempt);
+      if (committed != record->attempts.end() && committed->second.committed &&
+          committed->second.worker == envelope.worker && committed->second.boot == envelope.boot &&
+          committed->second.epoch == envelope.epoch) {
+        check.attempt = &committed->second;
+        check.committed_duplicate = true;
+      }
+    }
     check.verdict = reject(ErrorCode::STALE_ATTEMPT,
                            std::string("trial is already terminal: ") + std::string(to_string(trial->state)));
     return check;
@@ -868,17 +877,34 @@ Status Coordinator::commit_trial(const CommitTrialRequest& request) {
   }
   EnvelopeCheck check = impl.check_envelope(request.envelope);
   if (!check.verdict.accepted) {
+    if (check.committed_duplicate) {
+      // Duplicate delivery of the same authoritative completion is harmless and
+      // must not create a second logical commit. A re-delivery that carries an
+      // artifact the completion never recorded is not a duplicate.
+      bool same_completion = true;
+      const auto experiment_artifacts = impl.artifact_index.find(check.record->definition.id);
+      for (const ArtifactRecord& submitted : request.artifacts) {
+        if (experiment_artifacts == impl.artifact_index.end()) {
+          same_completion = false;
+          break;
+        }
+        const auto found = experiment_artifacts->second.find(submitted.id);
+        if (found == experiment_artifacts->second.end() ||
+            check.record->artifacts[found->second].attempt != request.envelope.attempt ||
+            check.record->artifacts[found->second].locator != submitted.locator) {
+          same_completion = false;
+          break;
+        }
+      }
+      if (same_completion) {
+        return Status::success();
+      }
+    }
     return authority_error(check.verdict.code, check.verdict.detail);
   }
   ExperimentRecord& record = *check.record;
   TrialRecord& trial = *check.trial;
   AttemptRecord& attempt = *check.attempt;
-
-  if (trial.state == TrialState::COMPLETED && attempt.committed) {
-    // Duplicate delivery of the same authoritative completion is harmless and
-    // must not create a second logical commit.
-    return Status::success();
-  }
 
   std::uint32_t observations = 0;
   for (const Observation& observation : record.observations) {

@@ -33,17 +33,27 @@ EF_TEST(explanation, constraint_order_is_deterministic_and_stable) {
     const std::vector<std::string> lines = ef::inspect::render_decision(again.value(), ef::Limits::defaults());
     EF_CHECK(lines == first_lines);
   }
-  // The constraint block is emitted in a fixed order derived from the policy.
+  // The constraint block is emitted in a fixed order derived from the policy:
+  // the documented hard-constraint order.
   std::vector<std::string> constraint_names;
   for (const std::string& line : first_lines) {
     if (line.rfind("constraint ", 0) == 0) {
-      constraint_names.push_back(line);
+      // "constraint PASS|FAIL <name> <detail>"
+      const std::size_t name_begin = line.find(' ', std::string("constraint ").size()) + 1;
+      constraint_names.push_back(line.substr(name_begin, line.find(' ', name_begin) - name_begin));
     }
   }
   EF_CHECK(constraint_names.size() > 5);
-  std::vector<std::string> sorted = constraint_names;
-  std::sort(sorted.begin(), sorted.end());
-  EF_CHECK(sorted == constraint_names);
+  const std::vector<std::string> documented_order = {"experiment_open",
+                                                     "candidate_branch_eligible",
+                                                     "baseline_present",
+                                                     "baseline_branch_eligible",
+                                                     "candidate_completed_trials",
+                                                     "baseline_completed_trials",
+                                                     "candidate_required_metric:latency_ms",
+                                                     "baseline_required_metric:latency_ms",
+                                                     "environment_match"};
+  EF_CHECK(constraint_names == documented_order);
 }
 
 EF_TEST(explanation, explanation_reports_rejected_and_non_authoritative_evidence) {

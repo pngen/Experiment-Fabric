@@ -125,7 +125,10 @@ EF_TEST(reproducibility, record_is_partially_reproducible_without_full_material)
   EF_CHECK(record.value().experiment == fixture.value().experiment);
   EF_CHECK(record.value().branch == fixture.value().candidate);
   EF_CHECK(record.value().seed.has_value());
-  EF_CHECK(record.value().input_set_present);
+  // The fixture declares no input set: its absence is reported as missing material.
+  EF_CHECK(!record.value().input_set_present);
+  EF_CHECK(std::find(record.value().missing_materials.begin(), record.value().missing_materials.end(),
+                     std::string("input-set-identity")) != record.value().missing_materials.end());
   EF_CHECK(record.value().environment_present);
   EF_CHECK(!record.value().producer_identity.empty());
   EF_CHECK_EQ(record.value().observation_count, 1u);
@@ -135,6 +138,7 @@ EF_TEST(reproducibility, record_is_partially_reproducible_without_full_material)
                                                           std::string("artifact-references")) !=
                                                     record.value().missing_materials.end());
   EF_CHECK(record.value().status != ef::ReproducibilityStatus::UNKNOWN);
+  EF_CHECK(record.value().status == ef::ReproducibilityStatus::PARTIALLY_REPRODUCIBLE);
   const std::vector<std::string> lines = ef::inspect::render_reproducibility(record.value(), ef::Limits::defaults());
   EF_CHECK(!lines.empty());
   EF_CHECK(lines[0].find("reproducibility experiment") == 0);
@@ -164,7 +168,12 @@ EF_TEST(reproducibility, digests_are_stable_across_identical_builds) {
 }
 
 EF_TEST(lineage, artifact_references_are_recorded_without_promotion) {
-  auto fixture = ef_fixture::make_fixture(nullptr, two_branches(), 1, false, 3);
+  // The candidate plans one trial more than the run completes: the artifact
+  // belongs to that trial's live attempt.
+  auto fixture = ef_fixture::make_fixture(nullptr,
+                                          {BranchFixture{"baseline", ef::BranchRole::BASELINE, 120.0, 1, false},
+                                           BranchFixture{"candidate", ef::BranchRole::CANDIDATE, 95.0, 2, false}},
+                                          1, false, 3);
   EF_REQUIRE(fixture.ok());
   ef::Coordinator& coordinator = *fixture.value().coordinator;
   EF_REQUIRE(ef_fixture::run_planned_trials(coordinator, fixture.value().experiment, fixture.value().worker,

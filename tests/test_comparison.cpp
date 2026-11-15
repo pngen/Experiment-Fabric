@@ -85,7 +85,14 @@ EF_TEST(comparison, invalid_evidence_invalidates_the_decision) {
   auto fixture = ef_fixture::make_fixture(nullptr, branches, 2, true);
   EF_REQUIRE(fixture.ok());
   ef::Coordinator& coordinator = *fixture.value().coordinator;
-  EF_REQUIRE(ef_fixture::run_planned_trials(coordinator, fixture.value().experiment, fixture.value().worker, branches)
+  // One valid and one invalid candidate completion: the candidate passes every
+  // earlier hard constraint (completed trials, required metric, minimum valid
+  // observations), so the unresolved invalid observation is what decides.
+  const std::vector<BranchFixture> completions = {BranchFixture{"baseline", ef::BranchRole::BASELINE, 120.0, 2, false},
+                                                  BranchFixture{"candidate", ef::BranchRole::CANDIDATE, 30.0, 1, false},
+                                                  BranchFixture{"candidate", ef::BranchRole::CANDIDATE, 30.0, 1, true}};
+  EF_REQUIRE(ef_fixture::run_planned_trials(coordinator, fixture.value().experiment, fixture.value().worker,
+                                            completions)
                  .ok());
   const auto decision = coordinator.evaluate(fixture.value().experiment, fixture.value().candidate);
   EF_REQUIRE(decision.ok());

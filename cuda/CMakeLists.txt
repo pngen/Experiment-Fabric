@@ -27,4 +27,12 @@ if(MSVC)
     $<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcompiler=/utf-8>
     $<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcompiler=/Zc:__cplusplus>
   )
+  # The host code links the AddressSanitizer-instrumented library, so it must be
+  # instrumented the same way or the linker rejects the mismatched annotations.
+  if(EXPERIMENT_FABRIC_ENABLE_ASAN)
+    target_compile_options(ef_cuda_trial PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcompiler=/fsanitize=address>
+      $<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcompiler=/Zi>
+    )
+  endif()
 endif()

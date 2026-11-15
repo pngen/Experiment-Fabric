@@ -221,6 +221,12 @@ if(EXPERIMENT_FABRIC_ENABLE_CUDA)
   include(CheckLanguage)
   check_language(CUDA)
   if(CMAKE_CUDA_COMPILER)
+    # nvcc's own default targets an architecture it deprecates (sm_52). Unless
+    # the caller names architectures, build sm_75 with PTX, which needs no GPU at
+    # configure time and is JIT-compiled for newer GPUs.
+    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+      set(CMAKE_CUDA_ARCHITECTURES 75)
+    endif()
     enable_language(CUDA)
     add_subdirectory(cuda)
   else()

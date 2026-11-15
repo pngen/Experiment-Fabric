@@ -253,7 +253,8 @@ EF_TEST(adversarial, retirement_then_republication_is_fenced) {
   // Retirement is idempotent through the state machine, and a second retirement
   // is refused rather than silently ignored.
   const auto again = coordinator.retire_branch(fixture.value().experiment, fixture.value().candidate, "again");
-  EF_CHECK(again.ok());
+  EF_CHECK(!again.ok());
+  EF_CHECK_EQ(again.status().code(), ef::ErrorCode::INVALID_TRANSITION);
 }
 
 EF_TEST(adversarial, an_experiment_that_does_not_exist_is_reported_consistently) {

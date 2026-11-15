@@ -35,6 +35,11 @@ int main() {
   }
   std::cout << "authoritative outcome: " << ef::to_string(finalized.value().outcome) << "\n\n";
 
+  // A finalized experiment refuses further mutation: rolling back to the
+  // accepted generation re-opens it for a later revision.
+  print_status("re-open", runner.coordinator->rollback(runner.experiment, finalized.value().generation,
+                                                      "re-open for a revision"));
+
   ef::HypothesisRevisionSpec revision;
   revision.statement = "A revision that changes the experiment semantics.";
   print_status("revise hypothesis", runner.coordinator->revise_hypothesis(runner.experiment, revision).status());

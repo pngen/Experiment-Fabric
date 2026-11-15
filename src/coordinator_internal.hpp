@@ -44,6 +44,9 @@ struct EnvelopeCheck {
   TrialRecord* trial = nullptr;
   AttemptRecord* attempt = nullptr;
   BranchDefinition* branch = nullptr;
+  /// Set with a rejected verdict when the envelope names the trial's own
+  /// committed completion, so a re-delivered commit can be recognised.
+  bool committed_duplicate = false;
 };
 
 /// Owns the coordinator's server-side thread pool. Defined in
